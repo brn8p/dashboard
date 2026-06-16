@@ -28,6 +28,29 @@ total = len(df) # quantidade total
 atrasadas = df["entrega_atrasada"].sum() # quantidade atrasadas
 percentual = int((atrasadas / total) * 100) # percentual atrasadas
 
+#### Filtros
+
+filtro_transp, filtro_regiao = st.columns(2)
+
+with filtro_transp:
+    sel_transp = st.multiselect(
+        "Transportadora",
+        options=df["transportadora"].unique(),
+        default=df["transportadora"].unique(),
+    )
+    if sel_transp == []:
+        sel_transp = df["transportadora"].unique()
+
+with filtro_regiao:
+    sel_regiao = st.multiselect(
+        "Região",
+        options=df["regiao"].unique(),
+        default=df["regiao"].unique(),
+    )
+    if sel_regiao == []:
+        sel_regiao = df["regiao"].unique()
+
+df_filtrado = df[(df["transportadora"].isin(sel_transp)) & (df["regiao"].isin(sel_regiao))]
 
 #### PKIs
 
@@ -38,7 +61,7 @@ with pki1: # coluna 1
     st.progress(percentual)
 
 with pki2: # coluna 2
-    media_atrasos = df["atraso"].sum() / df["entrega_atrasada"].sum()
+    media_atrasos = df_filtrado["atraso"].sum() / df_filtrado["entrega_atrasada"].sum()
     st.metric("Média de tempo de atraso", f"{media_atrasos:.0f} dias")
 
 # with pki3:
@@ -51,8 +74,8 @@ col1, col2 = st.columns(2) # 2 colunas
 with col1: # coluna 1
     st.subheader("Entregas por transportadora")
 
-    # dados_grafico = df.groupby("transportadora")["atraso"].sum().reset_index()
-    dados_grafico = df.groupby("transportadora").agg(
+    # dados_grafico = df_filtrado.groupby("transportadora")["atraso"].sum().reset_index()
+    dados_grafico = df_filtrado.groupby("transportadora").agg(
         total_entregas=("id_entrega", "count"),
         entregas_atrasadas=("entrega_atrasada", "sum")
     ).reset_index()
@@ -73,8 +96,8 @@ with col2:  # coluna 2
     st.subheader("Entregas por região")
 
 
-    # dados_grafico = df.groupby("regiao")["atraso"].sum().reset_index()
-    dados_grafico = df.groupby("regiao").agg(
+    # dados_grafico = df_filtrado.groupby("regiao")["atraso"].sum().reset_index()
+    dados_grafico = df_filtrado.groupby("regiao").agg(
         total_entregas=("id_entrega", "count"),
         entregas_atrasadas=("entrega_atrasada", "sum")
     ).reset_index()
@@ -93,11 +116,16 @@ with col2:  # coluna 2
 
 
 #### tabela
-df_ranking = df.sort_values(by="atraso", ascending=False)
+df_ranking = df_filtrado.sort_values(by="atraso", ascending=False)
 
 def destacar_atrasadas(row):
+    style = [''] * len(row)
+
     if row.entrega_atrasada == 1:
+        # Apply the style to specific columns or the whole row
         return ['color:#FF5050'] * len(row)
+
+    return style
 
 st.dataframe(
              df_ranking
@@ -108,5 +136,5 @@ st.dataframe(
                 "Prazo": st.column_config.NumberColumn("Prazo", format="%d dias"),
                 "dias_reais": st.column_config.NumberColumn("Dias reais", format="%d dias"),
                 "atraso": st.column_config.NumberColumn("Atraso", format="%d dias"),
-                "entrega_atrasada": st.column_config.CheckboxColumn("Entrega atrasada"),
+                "entrega_atrasada": None # st.column_config.CheckboxColumn("Entrega atrasada"),
              })
