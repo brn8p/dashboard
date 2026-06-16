@@ -41,7 +41,8 @@ def colorir_atrasadas(row):
 #### configuracoes e calculos
 # a pagina vai ocupar toda a tela
 st.set_page_config(
-    page_title="Dashboard de Monitoramento Logístico"
+    page_title="Dashboard de Monitoramento Logístico",
+    layout="wide"
 )
 
 st.title("Dashboard de Monitoramento Logístico")
