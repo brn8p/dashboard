@@ -4,9 +4,46 @@ import streamlit as st
 import pandas as pd
 
 
+def preparar_grafico(df, coluna):
+    dados = (
+        df.groupby(coluna)
+        .agg(
+            total_entregas=("id_entrega", "count"),
+            entregas_atrasadas=("entrega_atrasada", "sum")
+        )
+        .reset_index()
+    )
+
+    ordem = (
+        dados.sort_values(
+            by="entregas_atrasadas",
+            ascending=False
+        )[coluna]
+        .unique()
+        .tolist()
+    )
+
+    dados[coluna] = pd.Categorical(
+        dados[coluna],
+        categories=ordem,
+        ordered=True
+    )
+
+    return dados.sort_values(coluna)
+
+def colorir_atrasadas(row):
+    if row.entrega_atrasada:
+        return ['color:#FF5050'] * len(row)
+
+    return [''] * len(row)
+
+
 #### configuracoes e calculos
 # a pagina vai ocupar toda a tela
-st.set_page_config(layout="wide")
+st.set_page_config(
+    page_title="Dashboard de Monitoramento Logístico",
+    layout="wide"
+)
 
 st.title("Dashboard de Monitoramento Logístico")
 
@@ -15,17 +52,14 @@ df = pd.DataFrame({
     "id_entrega":     [ 301,       302,        303,        304,       305,            306,        307,       308,        309,        310        ],
     "transportadora": [ "RotaMax", "ViaCargo", "FlashLog", "RotaMax", "ViaCargo",     "FlashLog", "RotaMax", "ViaCargo", "FlashLog", "ViaCargo" ],
     "regiao":         [ "Sudeste", "Sul",      "Nordeste", "Norte",   "Centro-Oeste", "Sul",      "Sul",     "Sudeste",  "Norte",    "Nordeste" ],
-    "Prazo":          [ 3,         5,          4,          6,         2,              5,          6,         3,          5,          4          ],
+    "prazo":          [ 3,         5,          4,          6,         2,              5,          6,         3,          5,          4          ],
     "dias_reais":     [ 7,         5,          9,          4,         6,              12,         9,         4,          5,          8          ]
 })
 
-df["atraso"] = df["dias_reais"] - df["Prazo"] # adicionar tabela de atraso
+df["atraso"] = df["dias_reais"] - df["prazo"]  # adicionar tabela de atraso
 
-df["entrega_atrasada"] = df["atraso"] > 0 # adicionar campo booleano de entrega atrasada
+df["entrega_atrasada"] = df["atraso"] > 0  # adicionar campo booleano de entrega atrasada
 
-total = len(df) # quantidade total
-atrasadas = df["entrega_atrasada"].sum() # quantidade atrasadas
-percentual = int((atrasadas / total) * 100) # percentual atrasadas
 
 #### Filtros
 
@@ -51,44 +85,64 @@ with filtro_regiao:
 
 df_filtrado = df[(df["transportadora"].isin(sel_transp)) & (df["regiao"].isin(sel_regiao))]
 
-#### PKIs
+#### KPIs
 
-pki1, pki2 = st.columns(2) # 2 colunas
+kpi1, kpi2, kpi3 = st.columns(3)
 
-with pki1: # coluna 1
-    st.metric("Entregas atrasadas", f"{atrasadas}/{total} ({percentual:.0f}%)")
+with kpi1:
+    total = len(df_filtrado)
+    atrasadas = df_filtrado["entrega_atrasada"].sum()
+
+    percentual = (
+        int((atrasadas / total) * 100)
+        if total > 0
+        else 0
+    )
+
+    st.metric("Entregas atrasadas",
+        f"{atrasadas}/{total} ({percentual:.0f}%)"
+    )
     st.progress(percentual)
 
-with pki2: # coluna 2
-    media_atrasos = df_filtrado["atraso"].sum() / df_filtrado["entrega_atrasada"].sum()
-    st.metric("Média de tempo de atraso", f"{media_atrasos:.0f} dias")
+with kpi2:
+    media_atrasos = (
+        df_filtrado.loc[
+            df_filtrado["entrega_atrasada"],
+            "atraso"
+        ].mean()
+    )
 
-# with pki3:
+    if pd.isna(media_atrasos):
+        media_atrasos = 0
+
+    st.metric(
+        "Média de tempo de atraso",
+        f"{media_atrasos:.0f} dias"
+    )
+
+with kpi3:
+    maior_atraso = df_filtrado["atraso"].max()
+
+    if pd.isna(maior_atraso):
+        maior_atraso = 0
+
+    st.metric(
+        "Maior atraso",
+        f"{maior_atraso} dias"
+    )
 
 
 #### Gráficos
 
-col1, col2 = st.columns(2) # 2 colunas
+col1, col2 = st.columns(2)
 
-with col1: # coluna 1
+with col1:
     st.subheader("Entregas por transportadora")
 
-    dados_grafico = df_filtrado.groupby("transportadora").agg(
-        total_entregas=("id_entrega", "count"),
-        entregas_atrasadas=("entrega_atrasada", "sum")
-    ).reset_index()
-
-    ordem_regioes = (
-        dados_grafico.sort_values(by="entregas_atrasadas", ascending=False)["transportadora"]
-        .unique()
-        .tolist()
+    dados_grafico = preparar_grafico(
+        df_filtrado,
+        "transportadora"
     )
-
-    dados_grafico["transportadora"] = pd.Categorical(
-        dados_grafico["transportadora"], categories=ordem_regioes, ordered=True
-    )
-
-    dados_grafico = dados_grafico.sort_values("transportadora")
 
     st.bar_chart(
         data=dados_grafico,
@@ -100,25 +154,14 @@ with col1: # coluna 1
         height=400,
     )
 
-with col2:  # coluna 2
+with col2:
     st.subheader("Entregas por região")
 
-    dados_grafico = df_filtrado.groupby("regiao").agg(
-        total_entregas=("id_entrega", "count"),
-        entregas_atrasadas=("entrega_atrasada", "sum")
-    ).reset_index()
-
-    ordem_regioes = (
-        dados_grafico.sort_values(by="entregas_atrasadas", ascending=False)["regiao"]
-        .unique()
-        .tolist()
+    dados_grafico = preparar_grafico(
+        df_filtrado,
+        "regiao"
     )
 
-    dados_grafico["regiao"] = pd.Categorical(
-        dados_grafico["regiao"], categories=ordem_regioes, ordered=True
-    )
-
-    dados_grafico = dados_grafico.sort_values("regiao")
 
     st.bar_chart(
         data=dados_grafico,
@@ -134,23 +177,14 @@ with col2:  # coluna 2
 #### tabela
 df_ranking = df_filtrado.sort_values(by="atraso", ascending=False)
 
-def destacar_atrasadas(row):
-    style = [''] * len(row)
-
-    if row.entrega_atrasada == 1:
-        # Apply the style to specific columns or the whole row
-        return ['color:#FF5050'] * len(row)
-
-    return style
-
 st.dataframe(
-             df_ranking
-             .style.apply(destacar_atrasadas, axis=1),
-             hide_index=True,
-             column_config= {
-                "id_entrega": st.column_config.NumberColumn("ID entrega"),
-                "Prazo": st.column_config.NumberColumn("Prazo", format="%d dias"),
-                "dias_reais": st.column_config.NumberColumn("Dias reais", format="%d dias"),
-                "atraso": st.column_config.NumberColumn("Atraso", format="%d dias"),
-                "entrega_atrasada": None # st.column_config.CheckboxColumn("Entrega atrasada"),
-             })
+    df_ranking
+    .style.apply(colorir_atrasadas, axis=1),
+    hide_index=True,
+    column_config={
+        "id_entrega": st.column_config.NumberColumn("ID entrega"),
+        "prazo": st.column_config.NumberColumn("Prazo", format="%d dias"),
+        "dias_reais": st.column_config.NumberColumn("Dias reais", format="%d dias"),
+        "atraso": st.column_config.NumberColumn("Atraso", format="%d dias"),
+        "entrega_atrasada": None  # st.column_config.CheckboxColumn("Entrega atrasada"),
+    })
