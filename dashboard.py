@@ -1,6 +1,5 @@
 # dashboard - desafio dos dados
 # importando módulos
-import altair as alt
 import streamlit as st
 import pandas as pd
 
@@ -74,43 +73,60 @@ col1, col2 = st.columns(2) # 2 colunas
 with col1: # coluna 1
     st.subheader("Entregas por transportadora")
 
-    # dados_grafico = df_filtrado.groupby("transportadora")["atraso"].sum().reset_index()
     dados_grafico = df_filtrado.groupby("transportadora").agg(
         total_entregas=("id_entrega", "count"),
         entregas_atrasadas=("entrega_atrasada", "sum")
     ).reset_index()
 
-    dados_grafico["entregas_atrasadas_index"] = dados_grafico["entregas_atrasadas"]
+    ordem_regioes = (
+        dados_grafico.sort_values(by="entregas_atrasadas", ascending=False)["transportadora"]
+        .unique()
+        .tolist()
+    )
+
+    dados_grafico["transportadora"] = pd.Categorical(
+        dados_grafico["transportadora"], categories=ordem_regioes, ordered=True
+    )
+
+    dados_grafico = dados_grafico.sort_values("transportadora")
 
     st.bar_chart(
         data=dados_grafico,
         x="transportadora",
-        y=["entregas_atrasadas_index", "entregas_atrasadas", "total_entregas"],
+        y=["entregas_atrasadas", "total_entregas"],
         x_label="Transportadora",
         stack=False,
-        sort="-entregas_atrasadas_index",
+        color=["#b22222", "#0068c9"],
         height=400,
     )
 
 with col2:  # coluna 2
     st.subheader("Entregas por região")
 
-
-    # dados_grafico = df_filtrado.groupby("regiao")["atraso"].sum().reset_index()
     dados_grafico = df_filtrado.groupby("regiao").agg(
         total_entregas=("id_entrega", "count"),
         entregas_atrasadas=("entrega_atrasada", "sum")
     ).reset_index()
 
-    dados_grafico["entregas_atrasadas_index"] = dados_grafico["entregas_atrasadas"]
+    ordem_regioes = (
+        dados_grafico.sort_values(by="entregas_atrasadas", ascending=False)["regiao"]
+        .unique()
+        .tolist()
+    )
+
+    dados_grafico["regiao"] = pd.Categorical(
+        dados_grafico["regiao"], categories=ordem_regioes, ordered=True
+    )
+
+    dados_grafico = dados_grafico.sort_values("regiao")
 
     st.bar_chart(
         data=dados_grafico,
         x="regiao",
-        y=["total_entregas", "entregas_atrasadas_index", "entregas_atrasadas"],
+        y=["entregas_atrasadas", "total_entregas"],
         x_label="Região",
         stack=False,
-        sort="-entregas_atrasadas_index",
+        color=["#b22222", "#0068c9"],
         height=400,
     )
 
